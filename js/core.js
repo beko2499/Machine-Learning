@@ -115,6 +115,18 @@ function buildSidebar() {
     });
 }
 
+// ============ SHUFFLE HELPER (Fisher-Yates) ============
+function shuffleOptions(options, correctIdx) {
+    const indices = options.map((_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    const shuffled = indices.map(i => options[i]);
+    const newCorrect = indices.indexOf(correctIdx);
+    return { options: shuffled, correct: newCorrect };
+}
+
 // ============ GENERIC QUIZ ENGINE (DETAILED STYLE) ============
 function renderQuizDetailed(chapterId, containerId) {
     const ch = App.chapters[chapterId];
@@ -138,7 +150,9 @@ function renderQuizDetailed(chapterId, containerId) {
 
         if (q.type === 'mcq') {
             const letters = ['A', 'B', 'C', 'D'];
-            const optionsHTML = q.options.map((opt, i) => `
+            const shuffled = shuffleOptions(q.options, q.correct);
+            q._shuffledCorrect = shuffled.correct;
+            const optionsHTML = shuffled.options.map((opt, i) => `
                 <div class="q-option" data-qid="${prefix}-${q.id}" data-idx="${i}" onclick="selectOptionGeneric('${chapterId}', ${q.id}, ${i})">
                     <span class="option-letter">${letters[i]}</span>
                     <span>${opt}</span>
@@ -178,6 +192,7 @@ function selectOptionGeneric(chapterId, qid, selectedIdx) {
     const prefix = chapterId.replace('ch', '');
     const q = ch.quizData.find(q => q.id === qid);
     if (!q) return;
+    const correctIdx = q._shuffledCorrect !== undefined ? q._shuffledCorrect : q.correct;
 
     const card = document.getElementById(`q${prefix}-card-${qid}`);
     const options = card.querySelectorAll('.q-option');
@@ -185,10 +200,10 @@ function selectOptionGeneric(chapterId, qid, selectedIdx) {
 
     options.forEach((opt, i) => {
         opt.classList.add('disabled');
-        if (i === q.correct) opt.classList.add('show-correct');
+        if (i === correctIdx) opt.classList.add('show-correct');
     });
 
-    if (selectedIdx === q.correct) {
+    if (selectedIdx === correctIdx) {
         options[selectedIdx].classList.add('selected-correct');
         card.classList.add('answered-correct');
         ch.quizState.correct++;
@@ -264,12 +279,13 @@ function renderQuizCompact(chapterId, containerId) {
 
     mcqs.forEach(q => {
         const diffLabel = q.difficulty === 'easy' ? '🟢 سهل' : q.difficulty === 'medium' ? '🟡 متوسط' : '🔴 صعب';
+        const shuffled = shuffleOptions(q.options, q.correct);
         const card = document.createElement('div');
         card.className = 'question-card';
         card.innerHTML = `
             <div class="q-header"><span class="q-badge">${diffLabel}</span><span class="q-badge">MCQ</span></div>
             <p class="q-text">${q.question}</p>
-            <div class="q-options">${q.options.map((opt, i) => `<button class="q-option" onclick="checkAnswerCompact('${chapterId}',this,${i},${q.correct})">${opt}</button>`).join('')}</div>
+            <div class="q-options">${shuffled.options.map((opt, i) => `<button class="q-option" onclick="checkAnswerCompact('${chapterId}',this,${i},${shuffled.correct})">${opt}</button>`).join('')}</div>
             <div class="q-feedback" style="display:none;"></div>
         `;
         container.appendChild(card);
